@@ -1,0 +1,15 @@
+.build/
+dist/
+.DS_Store
+*.md
+.swiftpm/
+.codex/
+__pycache__/
+*.pyc
+*.dmg
+*.dSYM/
+.env
+.env.*
+*.p12
+*.p8
+*.mobileprovision

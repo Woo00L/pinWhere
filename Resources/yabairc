@@ -1,0 +1,4 @@
+# PinWhere 专用配置；只使用浮动布局，不改变现有窗口布局或鼠标焦点。
+"$PINWHERE_BACKEND" -m config layout float
+"$PINWHERE_BACKEND" -m config focus_follows_mouse off
+"$PINWHERE_BACKEND" -m config mouse_follows_focus off

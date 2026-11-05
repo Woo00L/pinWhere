@@ -1,0 +1,140 @@
+PinWhere 0.3.0 使用与开发说明
+
+一、这个版本做什么
+
+PinWhere 将选中的原应用窗口设置为 above 子层级，可直接点击、输入、滚动。
+状态栏或 Dock 点击图钉进入选窗；拖动图钉移动原窗口；单击图钉后跟随鼠标，再次点击放下，Esc 还原位置。
+没有屏幕内容镜像，不需要屏幕录制权限。
+只有读取到真实子层级 3 才报告置顶；取消或退出恢复为原层级。
+
+二、DMG 是否能做到拖入 Applications 后直接使用
+
+不能。DMG 只安装应用文件，不会自动改变 SIP、启动参数、隐私授权或向 Dock 加载扩展。
+当前仍是面向愿意进行系统设置的用户的开发版本，不是免配置大众分发版。
+第一次设置完成、后台和扩展仍在运行时，日常重新打开 PinWhere 不必重复全部设置。
+重启 Mac、Dock 重启、系统更新、移动应用路径或临时签名重建后，可能需要重新加载或授权，见下文。
+
+三、使用条件与已验证范围
+
+硬件：当前分发 App 为 arm64，只面向 Apple Silicon；后端虽含 x86_64 切片，不能据此认为整个 App 支持 Intel。
+系统：源码声明最低 macOS 14，但目前只在 macOS 27.0.1（26A434）上完成本机验证，其他版本未承诺兼容。
+账户：需要管理员认证。受组织管理、禁止调整启动安全策略的 Mac 可能不满足条件。
+系统保护：按 yabai 的要求部分关闭 SIP，关闭文件系统、调试和 NVRAM 保护，并启用 arm64e 预览 ABI。这会降低整台机器的保护，不仅影响 PinWhere。
+窗口权限：PinWhere 与 Contents/Helpers/yabai 分别授权。macOS 27 入口为“隐私与安全性 → 设备控制和数据访问”；旧版为“辅助功能”。
+Dock 扩展：使用 /Library/ScriptingAdditions/PinWhere.osax；需要安装且加载到本次 Dock 进程。
+后台：随 App 打包的 yabai 必须运行；不要求另装 Homebrew 或系统级 yabai。
+管理脚本：--start 目前调用 /usr/bin/python3；目标机器必须提供可运行的 Python 3，该程序在部分机器上可能需要 Apple 命令行工具。
+窗口系统：后端要求“显示器具有单独的空间”；关闭该选项时后端会拒绝运行。修改此项可能需要退出登录，按系统提示处理。
+目标窗口：必须提供可用的 Accessibility 窗口接口，且属于普通层级。系统安全窗口、菜单、全屏独立空间等不在保证范围内。
+后台冲突：管理脚本检测到任何现有 yabai 实例时会拒绝另起后台，避免误用其他配置；请先核对该实例。
+网络：已构建 App 不通过网络传输窗口内容；首次从源码构建需要联网下载固定版本后端源码。
+
+本机已通过后端实测：同一原窗口子层级 0→3→0；另一测试应用保持前台；窗口前后顺序实际改变并恢复。
+用户已确认选窗及实际使用成功。多显示器、多个置顶窗、模态对话框、所有应用和所有系统版本没有完整覆盖。
+
+四、第一次安装
+
+1. 阅读上述条件，保存工作。不要自动重启或关闭用户应用。
+2. 将 PinWhere.app 拖入 /Applications，先确定固定安装位置再授权。
+3. Apple Silicon Mac 关机，按住电源进入“选项 → 继续”，在恢复模式“实用工具 → 终端”执行：
+
+   csrutil enable --without fs --without debug --without nvram
+
+   必须看到成功提示再重启。只有帮助文本或报错不代表成功。
+4. 正常系统检查启动参数：
+
+   nvram boot-args
+
+   仅当启动参数原本为空时执行：
+
+   sudo nvram boot-args=-arm64e_preview_abi
+
+   如果已有其他参数，只添加该标记，不能覆盖原有参数。成功后重启。
+5. 检查 csrutil status 及 sysctl kern.bootargs。部分关闭时显示 Custom Configuration 不代表失败，应核对具体保护项。
+6. 安装并加载扩展，管理员密码由本人输入：
+
+   /Applications/PinWhere.app/Contents/Resources/backend.sh --load-extension
+
+   首次安装会短暂重启 Dock，待 Dock 恢复后再执行同一命令一次，确保实际加载。
+7. 打开 App。将 PinWhere 与下面的后端分别添加到“设备控制和数据访问”（旧版“辅助功能”），并开启：
+
+   /Applications/PinWhere.app/Contents/Helpers/yabai
+
+   PinWhere 本体的路径是 /Applications/PinWhere.app，不是 Helpers 目录。
+8. 启动后台：
+
+   /Applications/PinWhere.app/Contents/Resources/backend.sh --start
+
+   脚本在 IPC 确认成功后报告已连接。没有成功时先核对权限和日志，不要当成已就绪。
+9. 在 App 点击“重新检查”，再选窗。点击别的应用，核查原窗口仍在前方，且可以返回原窗口输入、滚动和移动。
+
+当前只有临时签名、没有 Developer ID 和 Apple 公证；互联网下载的副本可能被门禁拦截。
+请按 Apple 的官方说明确认软件来源和是否允许打开，不建议全局关闭门禁或其他保护来绕过问题。
+
+五、日常使用与重启
+
+同一登录会话中，后台和 Dock 扩展仍运行时，直接打开 App 即可选窗。
+当前 App 只检测后台，不会自动安装扩展、提权、启动后台或创建登录服务。
+重启 Mac 后先执行 --load-extension，再执行 --start，最后打开 App。
+只重启 Dock 后通常需再次 --load-extension；后台如果仍运行，不要重复 --start。
+系统升级后可能需要新的后端适配，不承诺原扩展继续可用。
+将 App 从源码 dist 移到 Applications，或重新构建临时签名后，可能需要重新添加两个授权对象；先恢复所有置顶，再停止旧路径的后台，然后从新路径启动。
+只有正常取消置顶或退出 App 才会主动恢复层级。强制结束、异常退出或后台失联时不要删除恢复记录。
+
+六、恢复与卸载
+
+在 App 中“恢复全部窗口层级”，确保恢复记录为空。
+后台重启导致代际不匹配时，使用“重新选择原窗口并恢复”，亲自选择对应原窗口。
+不要删除恢复记录来绕过身份校验，也不要对复用编号的新窗口写入旧层级。
+
+停止后台并卸载专用扩展：
+
+   /Applications/PinWhere.app/Contents/Resources/backend.sh --stop
+   /Applications/PinWhere.app/Contents/Resources/backend.sh --uninstall-extension
+
+还原启动参数：如果原参数为空、此后未添加其他参数，可用 sudo nvram -d boot-args；否则只移除 -arm64e_preview_abi，保留其他参数。
+在恢复模式执行 csrutil enable，重启后用 csrutil status 确认恢复。可随后在系统设置撤销两个窗口控制权限。
+删除 App 文件不会自动卸载 Dock 扩展，也不会恢复 SIP 和启动参数。
+
+七、源码构建与打包
+
+构建环境需要 Xcode/Apple 命令行工具、Swift、make、Python 3、curl，以及构建脚本调用的 macOS 工具。
+首次构建联网下载 AhsanFazal/yabai 固定提交，校验源码压缩包 SHA-256，然后应用单窗身份校验补丁。
+后端下载与编译不自动修改系统安全设置或加载扩展。
+
+   swift test
+   ./script/build_and_run.sh --build-only
+   ./script/package_dmg.sh
+
+已在使用源码目录下的 App 或后台时，可构建独立的分发副本，不覆盖运行中的程序：
+
+   PINWHERE_OUTPUT_DIR="$PWD/.build/distribution" ./script/build_and_run.sh --build-only
+   ./script/package_dmg.sh "$PWD/.build/distribution/PinWhere.app"
+
+DMG 包含 App、Applications 快捷方式、安装前说明和第三方许可；生成后校验镜像并输出 SHA-256。
+打包不会自动签发 Developer ID 证书、提交 Apple 公证或授予用户隐私权限。
+公开面向普通用户分发前还需准备正式签名、公证和安装引导；不能保证使用私有 Dock 扩展的整套方案会通过公证。
+
+源码结构：
+Sources/PinWhere：AppKit/SwiftUI 界面、选窗、原窗口控制、后端适配。
+Sources/PinWhereCore：层级租约与恢复、进程调用、坐标、移动状态机及只读遮挡检测。
+Tests：逻辑、身份变化、失败恢复、命令执行和超时测试。
+Resources：应用元数据、浮动布局配置、图标打包所需资源和安装前说明。
+script：构建、后端准备、固定源码补丁、后端管理和 DMG 打包。
+THIRD_PARTY_NOTICES.txt：第三方来源、版本及 MIT 许可证全文。
+
+Markdown、构建产物、DMG、机器本地配置和凭据不提交到 Git。正式发布的二进制应单独作为发布资产管理。
+
+八、实现依据
+
+yabai 对窗口层级和 SIP 的要求：
+https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection
+
+macOS 27 适配记录：
+https://github.com/asmvik/yabai/issues/2802
+
+本项目固定后端源码：
+https://github.com/AhsanFazal/yabai/tree/ad8d5adfdc39c76399599ae79a264f2525f6ca5e
+
+Apple 关于门禁、开发者签名和公证的说明：
+https://support.apple.com/zh-cn/102445
