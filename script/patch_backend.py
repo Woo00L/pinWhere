@@ -121,3 +121,27 @@ text = text.replace("    case SA_OPCODE_HANDSHAKE: {", '''    case SA_OPCODE_PIN
 payload.write_text(text)
 makefile = root / "makefile"
 makefile.write_text(makefile.read_text().replace("-framework SkyLight -framework Foundation -framework Carbon", "-framework SkyLight -framework AppKit -framework Carbon", 1))
+makefile.write_text(makefile.read_text().replace("FRAMEWORK      =", "FRAMEWORK      = -framework IOKit", 1))
+makefile.write_text(makefile.read_text().replace("-mmacosx-version-min=11.0", "-mmacosx-version-min=14.0"))
+
+# 随包原生首次设置：只读探测、请求窗口权限、保留已有参数的启动标记设置、一次认证加载扩展。
+setup_source = pathlib.Path(__file__).with_name("backend_setup.m").read_text()
+sa.write_text(sa.read_text() + "\n" + setup_source)
+text = daemon.read_text()
+marker = "static void parse_arguments(int argc, char **argv)\n{"
+if text.count(marker) != 1:
+    raise SystemExit("首次设置参数入口与预期不符")
+text = text.replace(marker, marker + '''
+    if (string_equals(argv[1], "--pinwhere-setup-status")) exit(pinwhere_setup_status());
+    if (string_equals(argv[1], "--pinwhere-enable-boot-argument")) exit(pinwhere_enable_boot_argument());
+    if (string_equals(argv[1], "--pinwhere-load-extension")) exit(pinwhere_load_extension());
+    if (string_equals(argv[1], "--pinwhere-reload-extension")) exit(pinwhere_reload_extension());
+    if (string_equals(argv[1], "--pinwhere-request-access")) {
+        @autoreleasepool {
+            NSDictionary *options = @{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @YES};
+            AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
+        }
+        exit(0);
+    }
+''', 1)
+daemon.write_text(text)
