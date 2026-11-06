@@ -38,7 +38,7 @@ else
   fi
   pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 fi
-PINWHERE_PATCH_HASH="$(shasum -a 256 "$ROOT_DIR/script/patch_backend.py" | awk '{print $1}')"
+PINWHERE_PATCH_HASH="$(cat "$ROOT_DIR/script/patch_backend.py" "$ROOT_DIR/script/backend_setup.m" | shasum -a 256 | awk '{print $1}')"
 if [ ! -x "$ROOT_DIR/.build/backend/yabai" ] || [ ! -f "$ROOT_DIR/.build/backend/patch.sha256" ] || \
    [ "$(cat "$ROOT_DIR/.build/backend/patch.sha256" 2>/dev/null || true)" != "$PINWHERE_PATCH_HASH" ]; then
   "$ROOT_DIR/script/prepare_backend.sh"

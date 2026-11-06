@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import Combine
 import PinWhereCore
+import ServiceManagement
 
 struct PinnedWindow: Identifiable {
     let id: CGWindowID
@@ -23,6 +24,12 @@ final class PinStore: ObservableObject {
     @Published private(set) var backendConnected = false
     @Published private(set) var backendStatus = "正在检测窗口层级后端…"
     @Published private(set) var checkingBackend = false
+    @Published private(set) var setupContext: SetupContext?
+    @Published private(set) var setupError: String?
+    @Published private(set) var performingSetup = false
+    @Published private(set) var loginEnabled = SMAppService.mainApp.status == .enabled
+    @Published private(set) var loginNeedsApproval = SMAppService.mainApp.status == .requiresApproval
+    @Published var showSetup = false
     @Published private(set) var pendingRecoveryCount = 0
     @Published private(set) var settingLayer = false
     @Published private(set) var recoveringLayers = false
@@ -38,6 +45,8 @@ final class PinStore: ObservableObject {
     private var spaceObserver: NSObjectProtocol?
     private var tick = 0
     private let backend = YabaiLayerBackend()
+    private let setupService = BackendSetupService()
+    private var lastAutomaticStart: Date?
     private let layers: WindowLayerManager
     private var verifyingLayers = false
     private var removing = Set<CGWindowID>()
@@ -63,26 +72,155 @@ final class PinStore: ObservableObject {
     }
 
     func checkBackend() {
-        guard !checkingBackend else { return }
+        guard !checkingBackend, !performingSetup, !shuttingDown else { return }
         checkingBackend = true
         Task {
             defer { checkingBackend = false }
             do {
                 pendingRecoveryCount = try await layers.pendingRestores().count
-                try await backend.readiness()
-                backendConnected = true
-                backendStatus = "后台已连接；选窗时检查 Dock 扩展及实际层级。"
+                accessibilityPermission = AXIsProcessTrusted()
+                var runtime = try await setupService.inspect()
+                var context = makeSetupContext(runtime)
+                setupContext = context
+                // 自动启动只发生在全部前提满足时；失败后退避，避免不断重启或弹窗。
+                if context.mayStartBackend, lastAutomaticStart.map({ Date().timeIntervalSince($0) > 30 }) ?? true {
+                    lastAutomaticStart = Date()
+                    try await setupService.start()
+                    runtime = try await setupService.inspect()
+                    context = makeSetupContext(runtime)
+                }
+                setupContext = context
+                backendConnected = context.nextStep == .ready
+                if backendConnected { UserDefaults.standard.set(true, forKey: "setupComplete") }
+                backendStatus = setupSummary(context.nextStep)
+                setupError = nil
+                loginEnabled = SMAppService.mainApp.status == .enabled
+                loginNeedsApproval = SMAppService.mainApp.status == .requiresApproval
             } catch {
                 backendConnected = false
-                backendStatus = "窗口层级后端未就绪，请先完成后端设置。"
+                setupError = error.localizedDescription
+                backendStatus = "尚未就绪，请打开首次设置检查。"
             }
         }
     }
 
+    private func makeSetupContext(_ runtime: SetupRuntime) -> SetupContext {
+        let app = Bundle.main.bundleURL.resolvingSymlinksInPath().deletingLastPathComponent().path
+        let userApplications = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications").path
+        return SetupContext(probe: runtime.probe,
+            installedInApplications: app == "/Applications" || app == userApplications,
+            appPermission: accessibilityPermission,
+            separateSpaces: !(UserDefaults(suiteName: "com.apple.spaces")?.bool(forKey: "spans-displays") ?? false),
+            backendConnected: runtime.connected, conflictingBackend: !runtime.conflictingPaths.isEmpty)
+    }
+
+    private func setupSummary(_ step: SetupStep) -> String {
+        switch step {
+        case .installApp: return "请先将 App 放入“应用程序”，再从固定位置打开并授权。"
+        case .systemSecurity: return "首次需要在恢复模式调整系统保护，请查看设置引导。"
+        case .bootArgument: return "启动参数尚未生效，请在引导中设置并手动重启。"
+        case .appPermission: return "请允许 PinWhere 的“\(permissionName)”权限。"
+        case .backendPermission: return "请单独允许随包后端的“\(permissionName)”权限。"
+        case .separateSpaces: return "请在“桌面与程序坞”开启“显示器具有单独的空间”。"
+        case .backendConflict: return "检测到其他路径的 yabai；不会自动覆盖或结束它。"
+        case .loadExtension: return "请点击加载扩展并完成系统管理员认证，无需终端命令。"
+        case .startBackend: return "后台尚未连接，正在等待自动启动或手动重试。"
+        case .ready: return "已就绪，后台自动连接；可选择原窗口置顶。"
+        }
+    }
+
+    func openSetup() { showSetup = true; checkBackend() }
+
+    func requestBackendPermission() {
+        guard !performingSetup, !checkingBackend else { return }
+        performingSetup = true
+        Task {
+            do { try await setupService.requestBackendPermission(); openPermissionSettings() }
+            catch { setupError = error.localizedDescription }
+            performingSetup = false
+            checkBackend()
+        }
+    }
+
+    func revealBackend() { NSWorkspace.shared.activateFileViewerSelecting([YabaiLayerBackend.executable]) }
+    func openApplications() { NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications")) }
+    func openBackendLog() { NSWorkspace.shared.open(BackendSetupService.logURL) }
+    func openDesktopSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension")!)
+    }
+
+    func loadExtension() {
+        guard let context = setupContext, context.mayLoadExtension,
+              context.probe.extensionInstalled || (pins.isEmpty && pendingRecoveryCount == 0) else {
+            setupError = "请先完成前面的设置并恢复全部置顶，扩展安装可能重启 Dock。"; return
+        }
+        let alert = NSAlert()
+        alert.messageText = "安装或加载窗口置顶扩展？"
+        let reloading = !pins.isEmpty || pendingRecoveryCount > 0
+        alert.informativeText = reloading
+            ? "将重新加载已安装的匹配扩展，以便恢复窗口层级。不会重新安装或主动重启 Dock，随后由 macOS 请求管理员认证。"
+            : "将加载 PinWhere 专用 Dock 扩展。首次安装可能短暂重启 Dock，随后由 macOS 请求管理员认证。"
+        alert.addButton(withTitle: "继续"); alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        performAdministrator(reloading ? .reloadExtension : .loadExtension)
+    }
+
+    func enableBootArgument() {
+        guard let context = setupContext, context.installedInApplications, context.probe.sipCompatible,
+              context.probe.nvramProtectionDisabled else { return }
+        let alert = NSAlert()
+        alert.messageText = "设置置顶扩展所需的启动参数？"
+        alert.informativeText = "将保留已有参数，并添加 -arm64e_preview_abi。成功后需要你保存工作并手动重启 Mac，App 不会自动重启。"
+        alert.addButton(withTitle: "设置"); alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        performAdministrator(.enableBootArgument)
+    }
+
+    private func performAdministrator(_ operation: SetupAdministratorCommand.Operation) {
+        guard !performingSetup, !checkingBackend else { return }
+        performingSetup = true; setupError = nil
+        Task {
+            do { try await setupService.performAdministrator(operation) }
+            catch { setupError = error.localizedDescription }
+            performingSetup = false
+            // 失败或用户取消后保留错误，不让只读检查把原因清掉。
+            if setupError == nil { lastAutomaticStart = nil; checkBackend() }
+        }
+    }
+
+    func retrySetup() { lastAutomaticStart = nil; checkBackend() }
+
+    func migratePreviousVersion() {
+        guard !performingSetup, !checkingBackend, pins.isEmpty else { return }
+        let alert = NSAlert()
+        alert.messageText = "退出旧版并停止旧后台？"
+        alert.informativeText = "将请求旧 PinWhere 正常退出，以先恢复它的置顶窗口。仅在恢复记录为空时停止旧版随包后台，不会结束其他 yabai。"
+        alert.addButton(withTitle: "迁移旧版"); alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        performingSetup = true; setupError = nil
+        Task {
+            do { try await setupService.stopPreviousPinWhereBackend() }
+            catch { setupError = error.localizedDescription }
+            performingSetup = false
+            if setupError == nil { lastAutomaticStart = nil; checkBackend() }
+        }
+    }
+
+    func setLoginEnabled(_ enabled: Bool) {
+        do {
+            if enabled { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
+            loginEnabled = SMAppService.mainApp.status == .enabled
+            loginNeedsApproval = SMAppService.mainApp.status == .requiresApproval
+        } catch { setupError = "登录启动设置未成功：\(error.localizedDescription)" }
+    }
+    func openLoginSettings() { SMAppService.openSystemSettingsLoginItems() }
+
     private func ensureBackend() -> Bool {
         guard backendConnected, !settingLayer, !shuttingDown, !recoveringLayers else {
-            errorMessage = "窗口层级后端尚未就绪或正在处理窗口。请先检查后端；不会使用辅助功能抬高代替置顶。"
+            errorMessage = "窗口置顶尚未就绪或正在处理窗口。请打开设置检查，条件满足后会自动连接。"
             checkBackend()
+            if !backendConnected { showSetup = true }
             onNeedsControl?()
             return false
         }
@@ -317,6 +455,7 @@ final class PinStore: ObservableObject {
 
     private func refresh() {
         tick += 1
+        if tick % 150 == 0 { checkBackend() }
         if tick % 10 == 0 { accessibilityPermission = AXIsProcessTrusted() }
         guard !controllers.isEmpty else { return }
         guard accessibilityPermission else {
