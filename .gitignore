@@ -2,6 +2,8 @@
 dist/
 .DS_Store
 *.md
+# 仅上传仓库首页 README，其他 Markdown 文档仍保留在本机。
+!/README.md
 .swiftpm/
 .codex/
 __pycache__/
