@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.onSelectionStarting = { [weak self] in self?.controlWindow?.orderOut(nil) }
         store.onNeedsControl = { [weak self] in self?.showControl() }
         showControl()
+        if !UserDefaults.standard.bool(forKey: "setupComplete") { store.openSetup() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -26,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) { store.shutdown() }
+    func applicationDidBecomeActive(_ notification: Notification) { store.checkBackend() }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if flag || controlWindow?.isMiniaturized == true { showControl() }
@@ -62,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func chooseWindow() { store.beginSelection() }
     @objc private func unpinAll() { store.removeAll() }
     @objc private func openPermissions() { store.openPermissionSettings() }
+    @objc private func openSetup() { showControl(); store.openSetup() }
     @objc private func quit() { NSApp.terminate(nil) }
 
     private func installStatusItem() {
@@ -97,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item("取消全部置顶", action: #selector(unpinAll)))
         }
         menu.addItem(.separator())
+        menu.addItem(item("首次设置与自动连接…", action: #selector(openSetup)))
         menu.addItem(item("\(store.permissionName)设置…", action: #selector(openPermissions)))
         menu.addItem(item("退出 PinWhere", action: #selector(quit), key: "q"))
         return menu
@@ -108,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let app = NSMenu()
         app.addItem(item("关于 PinWhere", action: #selector(showControl)))
         app.addItem(item("打开控制窗口", action: #selector(showControl), key: ","))
+        app.addItem(item("首次设置与自动连接…", action: #selector(openSetup)))
         app.addItem(.separator())
         app.addItem(item("退出 PinWhere", action: #selector(quit), key: "q"))
         appItem.submenu = app

@@ -6,7 +6,7 @@ PinWhere 第三方软件声明
 固定提交：ad8d5adfdc39c76399599ae79a264f2525f6ca5e
 源码压缩包 SHA-256：ad3bd2b819144d49a6c359bd69bd10cd58528d96d068be4c30bab1cd4aaf9c23
 
-本地修改记录见 script/patch_backend.py：独立通信端点与扩展目录、单窗身份校验命令、窗口代际标识、禁用后台全局鼠标事件监听。
+本地修改记录见 script/patch_backend.py 和 script/backend_setup.m：独立通信端点与扩展目录、单窗身份校验命令、窗口代际标识、禁用后台全局鼠标事件监听、原生首次设置和只读状态探测。
 下载或分发该组件时保留以下原始版权和 MIT 许可证。该许可适用于该第三方组件，不自动确定 PinWhere 自有源码的许可。
 
 The MIT License (MIT)

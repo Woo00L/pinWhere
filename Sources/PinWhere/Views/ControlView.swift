@@ -33,6 +33,7 @@ struct ControlView: View {
         }
         .frame(minWidth: 560, idealWidth: 620, minHeight: 540, idealHeight: 620)
         .sheet(isPresented: $store.showWindowList) { windowList }
+        .sheet(isPresented: $store.showSetup) { SetupView(store: store) }
     }
 
     private var header: some View {
@@ -46,6 +47,8 @@ struct ControlView: View {
                 Text("原窗口层级控制 · 可直接操作").font(.system(size: 12)).foregroundStyle(.secondary)
             }
             Spacer()
+            Button(action: store.openSetup) { Image(systemName: "gearshape") }
+                .buttonStyle(.borderless).help("首次设置与自动连接")
             Button(action: store.openWindowList) { Image(systemName: "list.bullet.rectangle") }
                 .buttonStyle(.borderless).help("从窗口列表选择")
                 .accessibilityLabel("从窗口列表选择")
@@ -121,6 +124,13 @@ struct ControlView: View {
                     .disabled(store.checkingBackend)
             }
             Text(store.backendStatus).font(.system(size: 11)).foregroundStyle(.secondary)
+            HStack {
+                Button(store.backendConnected ? "设置与登录启动…" : "打开首次设置…", action: store.openSetup)
+                if store.checkingBackend { ProgressView().controlSize(.small) }
+            }
+            if let message = store.setupError {
+                Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
+            }
             if store.settingLayer { ProgressView("正在设置并核对原窗口层级…").controlSize(.small) }
             if store.pendingRecoveryCount > 0 {
                 Text("有 \(store.pendingRecoveryCount) 个窗口层级记录（包含当前置顶）。退出前将恢复。")

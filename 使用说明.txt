@@ -1,140 +1,124 @@
-PinWhere 0.3.0 使用与开发说明
+PinWhere 0.4.0 使用与开发说明
 
-一、这个版本做什么
+一、功能与本版变化
 
 PinWhere 将选中的原应用窗口设置为 above 子层级，可直接点击、输入、滚动。
-状态栏或 Dock 点击图钉进入选窗；拖动图钉移动原窗口；单击图钉后跟随鼠标，再次点击放下，Esc 还原位置。
-没有屏幕内容镜像，不需要屏幕录制权限。
-只有读取到真实子层级 3 才报告置顶；取消或退出恢复为原层级。
+从状态栏或 Dock 点击图钉选窗；拖动图钉移动原窗口；单击图钉后跟随鼠标，再次点击放下，Esc 还原位置。
+没有屏幕内容镜像，不需要屏幕录制权限。取消或正常退出会恢复原层级。
 
-二、DMG 是否能做到拖入 Applications 后直接使用
+0.4.0 新增 App 内首次设置引导、只读系统条件探测、普通后台原生自动启动、可选登录启动。
+启动参数设置和 Dock 扩展加载可在 App 内点击，由 macOS 请求管理员认证。
+正常运行不依赖 Python、Homebrew、命令行工具或终端命令。
+只有首次 SIP 设置仍必须进入恢复模式终端执行，App 无法代办。
 
-不能。DMG 只安装应用文件，不会自动改变 SIP、启动参数、隐私授权或向 Dock 加载扩展。
-当前仍是面向愿意进行系统设置的用户的开发版本，不是免配置大众分发版。
-第一次设置完成、后台和扩展仍在运行时，日常重新打开 PinWhere 不必重复全部设置。
-重启 Mac、Dock 重启、系统更新、移动应用路径或临时签名重建后，可能需要重新加载或授权，见下文。
+二、能否做到 DMG 拖入 Applications 后直接使用
 
-三、使用条件与已验证范围
+全新且启用完整 SIP 的 Mac：不能。首次仍需调整系统保护、设置启动参数并授予隐私权限。
+完成首次设置后：打开 App，条件满足时自动启动后台并连接，可以直接选窗。
+重启 Mac 或 Dock 后：App 检查条件，扩展未加载时提供按钮；仍可能需要本人点击并完成管理员认证。
+本版本不安装常驻管理员服务、不添加免密码 sudo 配置、不保存管理员密码，也不会自动关机或重启。
+准确描述是“首次引导设置，日常尽量自动连接”，不能宣称完全免配置或重启后始终无人值守。
 
-硬件：当前分发 App 为 arm64，只面向 Apple Silicon；后端虽含 x86_64 切片，不能据此认为整个 App 支持 Intel。
-系统：源码声明最低 macOS 14，但目前只在 macOS 27.0.1（26A434）上完成本机验证，其他版本未承诺兼容。
-账户：需要管理员认证。受组织管理、禁止调整启动安全策略的 Mac 可能不满足条件。
-系统保护：按 yabai 的要求部分关闭 SIP，关闭文件系统、调试和 NVRAM 保护，并启用 arm64e 预览 ABI。这会降低整台机器的保护，不仅影响 PinWhere。
-窗口权限：PinWhere 与 Contents/Helpers/yabai 分别授权。macOS 27 入口为“隐私与安全性 → 设备控制和数据访问”；旧版为“辅助功能”。
-Dock 扩展：使用 /Library/ScriptingAdditions/PinWhere.osax；需要安装且加载到本次 Dock 进程。
-后台：随 App 打包的 yabai 必须运行；不要求另装 Homebrew 或系统级 yabai。
-管理脚本：--start 目前调用 /usr/bin/python3；目标机器必须提供可运行的 Python 3，该程序在部分机器上可能需要 Apple 命令行工具。
-窗口系统：后端要求“显示器具有单独的空间”；关闭该选项时后端会拒绝运行。修改此项可能需要退出登录，按系统提示处理。
-目标窗口：必须提供可用的 Accessibility 窗口接口，且属于普通层级。系统安全窗口、菜单、全屏独立空间等不在保证范围内。
-后台冲突：管理脚本检测到任何现有 yabai 实例时会拒绝另起后台，避免误用其他配置；请先核对该实例。
-网络：已构建 App 不通过网络传输窗口内容；首次从源码构建需要联网下载固定版本后端源码。
+三、使用条件与验证范围
 
-本机已通过后端实测：同一原窗口子层级 0→3→0；另一测试应用保持前台；窗口前后顺序实际改变并恢复。
-用户已确认选窗及实际使用成功。多显示器、多个置顶窗、模态对话框、所有应用和所有系统版本没有完整覆盖。
+硬件：当前 App 为 arm64，只面向 Apple Silicon。后端含 x86_64 切片不代表整个 App 支持 Intel。
+系统：源码最低声明 macOS 14，目前只在 macOS 27.0.1（26A434）验证，其他版本没有兼容保证。
+账户：安装和加载 Dock 扩展、添加启动参数需要管理员认证。组织管理的 Mac 可能禁止调整安全策略。
+系统保护：按 yabai 要求部分关闭 SIP，关闭文件系统、调试和 NVRAM 保护，并启用 arm64e 预览 ABI；这会降低整台机器的保护。
+权限：PinWhere 与 Contents/Helpers/yabai 分别需要窗口控制权限。macOS 27 为“隐私与安全性 → 设备控制和数据访问”；旧版为“辅助功能”。
+固定路径：先放入 /Applications 或本人 ~/Applications，再授权。在下载目录、DMG 或源码构建目录运行时只提供引导，不自动启动后台。
+窗口系统：需要开启“显示器具有单独的空间”。修改后按系统提示退出登录。
+目标窗口：必须提供可用的 Accessibility 窗口接口且属于普通层级。系统安全窗口、菜单、独立全屏空间不在保证范围。
+后台冲突：检测到其他路径的 yabai 时停止自动启动，要求用户核对旧实例，不自动杀进程或覆盖其他配置。
+网络：App 不通过网络传输窗口内容；首次源码构建需要联网下载后端源码。
+签名：目前为临时签名，没有 Developer ID 和 Apple 公证。下载副本可能被门禁拦截，更新后可能要重新授权。
 
-四、第一次安装
+原窗口层级机制在上一版完成本机实测，用户已确认实际使用成功。
+0.4.0 的设置策略、原生后端探测及引导界面已验证；新电脑从恢复模式开始的完整首次安装、真实重启后的全部交互仍需现场验证。
+多显示器、多个置顶窗、模态对话框、所有应用及所有系统版本未完整覆盖。
 
-1. 阅读上述条件，保存工作。不要自动重启或关闭用户应用。
-2. 将 PinWhere.app 拖入 /Applications，先确定固定安装位置再授权。
-3. Apple Silicon Mac 关机，按住电源进入“选项 → 继续”，在恢复模式“实用工具 → 终端”执行：
+四、第一次安装与引导
+
+1. 将 App 拖入 Applications，从“应用程序”打开，点击“打开首次设置”。
+2. SIP 未满足时保存工作并关机。Apple Silicon 按住电源进入“选项 → 继续”，选择“实用工具 → 终端”，执行：
 
    csrutil enable --without fs --without debug --without nvram
 
-   必须看到成功提示再重启。只有帮助文本或报错不代表成功。
-4. 正常系统检查启动参数：
+   必须看到成功提示后手动重启，只有帮助文本或报错不代表成功。
+3. 回到 App，点击“设置启动参数…”。管理员认证后添加 -arm64e_preview_abi，并保留已有其他参数。
+   成功后保存工作并本人重启；参数已保存但未重启时，引导提示等待生效。
+4. 分别点击“授权 PinWhere”和“授权后端”，在“设备控制和数据访问”（旧版“辅助功能”）开启两项。
+   后端没有显示时，点击“在访达中显示后端”，再在权限列表点“＋”添加该文件。
+5. 点击“安装或加载扩展…”，确认后由 macOS 请求管理员认证。首次安装可能短暂重启 Dock，引导等待并再次加载。
+6. 条件满足后普通后台自动启动。只有后台 IPC、扩展协议和权限均正常，才报告就绪。
+7. 可选开启“登录后打开 PinWhere”；系统要求额外允许时，点击按钮进入登录项设置。
+8. 选窗后点击其他应用，核查原窗口保持在前方，并可点击、输入、滚动及移动。
 
-   nvram boot-args
+管理员认证被取消、权限被拒绝或后台冲突时，不循环弹出认证。可点击“重新检查并连接”。
 
-   仅当启动参数原本为空时执行：
+五、日常使用、重启和 Dock 重启
 
-   sudo nvram boot-args=-arm64e_preview_abi
+普通后台由 App 原生启动，不需要终端。已有同路径后台时直接连接。
+后台异常退出时，App 定期检查并尝试重新启动，失败会退避。恢复记录仍保留，不跨代际盲目写入层级。
+关闭控制窗口后 App 留在状态栏；正常退出先恢复层级，普通后台可留在当前登录会话供下次连接。
+重启 Mac 后打开 App（或使用自行开启的登录启动）；扩展缺失时按引导点击加载并认证。
+Dock 重启且有恢复记录时，只重新加载已匹配的现有扩展，不重新安装或主动重启 Dock。
+扩展文件不匹配且有恢复记录时，先在可用旧版恢复层级，再更新扩展，不能删除记录绕过检查。
+系统更新可能改变私有接口，需要新后端适配，不承诺原扩展继续可用。
 
-   如果已有其他参数，只添加该标记，不能覆盖原有参数。成功后重启。
-5. 检查 csrutil status 及 sysctl kern.bootargs。部分关闭时显示 Custom Configuration 不代表失败，应核对具体保护项。
-6. 安装并加载扩展，管理员密码由本人输入：
+六、从 0.3.0 或源码目录版本升级
 
-   /Applications/PinWhere.app/Contents/Resources/backend.sh --load-extension
+先把新版放入 Applications，打开首次设置；检测到旧路径后台时，点击“退出旧版并停止旧后台…”。
+确认后请求旧版正常退出，让旧版先恢复窗口。只有恢复记录为空，才停止旧 PinWhere 的随包后台。
+旧版拒绝退出、有无法恢复的记录或检测到其他窗口管理器时会停止迁移，不会强制结束。
+迁移完成后在新版重新核对两项权限。临时签名和路径变化可能让权限失效。
+也可手动在旧版恢复全部层级、退出，再运行旧版 backend.sh --stop，作为高级维护方式。
 
-   首次安装会短暂重启 Dock，待 Dock 恢复后再执行同一命令一次，确保实际加载。
-7. 打开 App。将 PinWhere 与下面的后端分别添加到“设备控制和数据访问”（旧版“辅助功能”），并开启：
+七、恢复与卸载
 
-   /Applications/PinWhere.app/Contents/Helpers/yabai
-
-   PinWhere 本体的路径是 /Applications/PinWhere.app，不是 Helpers 目录。
-8. 启动后台：
-
-   /Applications/PinWhere.app/Contents/Resources/backend.sh --start
-
-   脚本在 IPC 确认成功后报告已连接。没有成功时先核对权限和日志，不要当成已就绪。
-9. 在 App 点击“重新检查”，再选窗。点击别的应用，核查原窗口仍在前方，且可以返回原窗口输入、滚动和移动。
-
-当前只有临时签名、没有 Developer ID 和 Apple 公证；互联网下载的副本可能被门禁拦截。
-请按 Apple 的官方说明确认软件来源和是否允许打开，不建议全局关闭门禁或其他保护来绕过问题。
-
-五、日常使用与重启
-
-同一登录会话中，后台和 Dock 扩展仍运行时，直接打开 App 即可选窗。
-当前 App 只检测后台，不会自动安装扩展、提权、启动后台或创建登录服务。
-重启 Mac 后先执行 --load-extension，再执行 --start，最后打开 App。
-只重启 Dock 后通常需再次 --load-extension；后台如果仍运行，不要重复 --start。
-系统升级后可能需要新的后端适配，不承诺原扩展继续可用。
-将 App 从源码 dist 移到 Applications，或重新构建临时签名后，可能需要重新添加两个授权对象；先恢复所有置顶，再停止旧路径的后台，然后从新路径启动。
-只有正常取消置顶或退出 App 才会主动恢复层级。强制结束、异常退出或后台失联时不要删除恢复记录。
-
-六、恢复与卸载
-
-在 App 中“恢复全部窗口层级”，确保恢复记录为空。
-后台重启导致代际不匹配时，使用“重新选择原窗口并恢复”，亲自选择对应原窗口。
-不要删除恢复记录来绕过身份校验，也不要对复用编号的新窗口写入旧层级。
-
-停止后台并卸载专用扩展：
+正常取消置顶或退出 App 会恢复层级。强制结束、异常退出或后台失联时，不要删除恢复记录。
+后台重启后代际不匹配时，使用“重新选择原窗口并恢复”，本人确认对应窗口。
+卸载前先恢复全部层级，在引导中关闭登录启动，再正常退出 App。
+高级维护命令：
 
    /Applications/PinWhere.app/Contents/Resources/backend.sh --stop
    /Applications/PinWhere.app/Contents/Resources/backend.sh --uninstall-extension
 
-还原启动参数：如果原参数为空、此后未添加其他参数，可用 sudo nvram -d boot-args；否则只移除 -arm64e_preview_abi，保留其他参数。
-在恢复模式执行 csrutil enable，重启后用 csrutil status 确认恢复。可随后在系统设置撤销两个窗口控制权限。
-删除 App 文件不会自动卸载 Dock 扩展，也不会恢复 SIP 和启动参数。
+原启动参数为空且未新增其他参数时可用 sudo nvram -d boot-args 还原；否则只移除 -arm64e_preview_abi，保留其他参数。
+在恢复模式执行 csrutil enable，重启后核对 csrutil status；可在系统设置撤销两个窗口控制权限。
+删除 App 不自动卸载扩展或恢复 SIP、启动参数。
 
-七、源码构建与打包
+八、源码构建与打包
 
-构建环境需要 Xcode/Apple 命令行工具、Swift、make、Python 3、curl，以及构建脚本调用的 macOS 工具。
-首次构建联网下载 AhsanFazal/yabai 固定提交，校验源码压缩包 SHA-256，然后应用单窗身份校验补丁。
-后端下载与编译不自动修改系统安全设置或加载扩展。
+构建需要 Xcode/Apple 命令行工具、Swift、make、Python 3、curl 及 macOS 工具。
+Python 仅用于源码构建和可选旧管理脚本，App 正常运行不依赖它。
+首次下载固定后端提交，校验 SHA-256，再应用窗口身份校验及设置入口补丁。
+构建不修改系统安全设置、不加载扩展、不授予权限。
 
    swift test
    ./script/build_and_run.sh --build-only
+   python3 script/check_backend_setup.py dist/PinWhere.app/Contents/Helpers/yabai
    ./script/package_dmg.sh
 
-已在使用源码目录下的 App 或后台时，可构建独立的分发副本，不覆盖运行中的程序：
+正在使用旧版时构建独立副本：
 
-   PINWHERE_OUTPUT_DIR="$PWD/.build/distribution" ./script/build_and_run.sh --build-only
-   ./script/package_dmg.sh "$PWD/.build/distribution/PinWhere.app"
+   PINWHERE_OUTPUT_DIR="$PWD/.build/distribution-0.4" ./script/build_and_run.sh --build-only
+   ./script/package_dmg.sh "$PWD/.build/distribution-0.4/PinWhere.app"
 
-DMG 包含 App、Applications 快捷方式、安装前说明和第三方许可；生成后校验镜像并输出 SHA-256。
-打包不会自动签发 Developer ID 证书、提交 Apple 公证或授予用户隐私权限。
-公开面向普通用户分发前还需准备正式签名、公证和安装引导；不能保证使用私有 Dock 扩展的整套方案会通过公证。
+DMG 包含 App、Applications 快捷方式、安装前说明和许可，生成后校验并输出 SHA-256。
+正式分发仍需 Developer ID、Apple 公证及更广泛兼容测试；不能保证私有 Dock 扩展整套方案可通过公证。
+Markdown、构建产物、DMG、机器配置和凭据不提交 Git，二进制另作发布资产。
 
-源码结构：
-Sources/PinWhere：AppKit/SwiftUI 界面、选窗、原窗口控制、后端适配。
-Sources/PinWhereCore：层级租约与恢复、进程调用、坐标、移动状态机及只读遮挡检测。
-Tests：逻辑、身份变化、失败恢复、命令执行和超时测试。
-Resources：应用元数据、浮动布局配置、图标打包所需资源和安装前说明。
-script：构建、后端准备、固定源码补丁、后端管理和 DMG 打包。
-THIRD_PARTY_NOTICES.txt：第三方来源、版本及 MIT 许可证全文。
+Sources/PinWhere：界面、引导、权限、原生后台启动、窗口控制和后端适配。
+Sources/PinWhereCore：层级恢复、设置策略、命令执行、坐标和移动状态机。
+script/backend_setup.m：只读探测和受管理员身份限制的系统设置入口。
+script/backend.sh：可选高级维护和旧版迁移脚本。
+THIRD_PARTY_NOTICES.txt：第三方来源、固定版本和 MIT 许可证。
 
-Markdown、构建产物、DMG、机器本地配置和凭据不提交到 Git。正式发布的二进制应单独作为发布资产管理。
+九、实现依据
 
-八、实现依据
-
-yabai 对窗口层级和 SIP 的要求：
 https://github.com/asmvik/yabai/wiki/Disabling-System-Integrity-Protection
-
-macOS 27 适配记录：
 https://github.com/asmvik/yabai/issues/2802
-
-本项目固定后端源码：
 https://github.com/AhsanFazal/yabai/tree/ad8d5adfdc39c76399599ae79a264f2525f6ca5e
-
-Apple 关于门禁、开发者签名和公证的说明：
 https://support.apple.com/zh-cn/102445
+https://support.apple.com/zh-sg/guide/mac-help/mh43185/mac
